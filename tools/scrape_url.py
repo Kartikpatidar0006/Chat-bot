@@ -32,7 +32,7 @@ def execute(arguments: dict) -> str:
         import re
         text = re.sub(r'\s+', ' ', text).strip()
 
-        return text[:5000] if text else "No content found on this page."
+        return text[:2000] if text else "No content found on this page."
 
     except Exception as e:
         return f"scrape_url error: {e}"

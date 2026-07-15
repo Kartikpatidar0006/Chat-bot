@@ -5,10 +5,58 @@ from prompts import SYSTEM_PROMPT
 from parser import parse_tool_calls
 from tools.registry import execute_tool
 
+# Keywords that mean LLM failed to call a tool
+REFUSAL_PHRASES = [
+    "i don't have the tools",
+    "i currently don't have",
+    "i'm unable to provide",
+    "i cannot provide",
+    "i don't have access",
+    "i am unable to",
+    "i can't provide",
+    "i do not have the",
+    "hit a request limit",
+    "i'm sorry, but i currently",
+]
+
+def llm_refused_tool(response: str) -> bool:
+    """Check if LLM said it couldn't use a tool instead of calling it."""
+    lower = response.lower()
+    return any(phrase in lower for phrase in REFUSAL_PHRASES)
+
+def detect_forced_tool(user_input: str) -> dict | None:
+    """
+    If LLM didn't call a tool, detect what tool should have been called.
+    Returns a tool_request dict or None.
+    """
+    lower = user_input.lower()
+
+    # Time check
+    time_words = ['time', 'samay', 'kitne baje', 'clock', 'what time']
+    if any(w in lower for w in time_words) and 'weather' not in lower:
+        return {"tool": "time"}
+
+    # Weather check
+    weather_words = ['weather', 'temperature', 'rain', 'humidity', 'mausam', 'garmi', 'sardi', 'forecast']
+    if any(w in lower for w in weather_words):
+        # Try to extract city from common patterns
+        city_match = re.search(
+            r'(?:of|in|at|for)\s+([A-Za-z\s]+?)(?:\s+and|\s+weather|\s+temperature|\?|$)',
+            user_input, re.IGNORECASE
+        )
+        city = city_match.group(1).strip() if city_match else "Delhi"
+        return {"tool": "weather", "city": city}
+
+    # Everything else → web search (for any factual / knowledge question)
+    if len(user_input.split()) >= 2:
+        return {"tool": "web_search", "query": user_input}
+
+    return None
+
 def extract_urls_from_search(search_output: str) -> list:
     """Web search output mein se URLs extract karo."""
     urls = re.findall(r'URL:\s*(https?://[^\s\n]+)', search_output)
-    return urls[:5]  
+    return urls[:5]
 
 class Agent:
     def run(self, user_input: str) -> str:
@@ -24,16 +72,30 @@ class Agent:
         messages.extend(memory)
         messages.append({"role": "user", "content": user_input})
 
+        # Step 1: LLM se response lo
         llm_response = chat(messages)
 
+        # Step 2: Tool calls parse karo
         tool_requests = parse_tool_calls(llm_response)
 
+        # Step 3: Agar LLM ne tool call nahi ki aur refuse kar diya → force karo
+        if not tool_requests and llm_refused_tool(llm_response):
+            forced = detect_forced_tool(user_input)
+            if forced:
+                print(f"[FALLBACK] LLM refused, forcing tool: {forced}")
+                tool_requests = [forced]
+                # Override llm_response with JSON so conversation flow stays consistent
+                import json
+                llm_response = json.dumps(forced)
+
+        # Koi tool nahi — seedha jawab do
         if not tool_requests:
             memory.append({"role": "user", "content": user_input})
             memory.append({"role": "assistant", "content": llm_response})
             save_memory(memory)
             return llm_response
 
+        # Step 4: Tools execute karo
         used_tools = [req.get("tool") for req in tool_requests]
         is_web_search = "web_search" in used_tools
 
@@ -52,8 +114,9 @@ class Agent:
             if tool_name == "web_search":
                 web_search_output = result
 
-        all_sources = []  
+        all_sources = []
 
+        # Step 5: Web search ke baad auto-scrape
         if is_web_search and web_search_output:
             urls = extract_urls_from_search(web_search_output)
             scraped_contents = []
@@ -74,13 +137,11 @@ class Agent:
                     scraped_contents.append(
                         f"--- Detailed content from Source {i}: {title} ---\n"
                         f"URL: {url}\n"
-                        f"{scraped[:4000]}\n"   
+                        f"{scraped[:4000]}\n"
                     )
                 else:
-                    
                     scraped_contents.append(
-                        f"--- Source {i}: {title} (scraped failed, using search snippet) ---\n"
-                        f"URL: {url}\n"
+                        f"--- Source {i}: {title} ---\nURL: {url}\n"
                     )
 
             if scraped_contents:
