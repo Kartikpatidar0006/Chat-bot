@@ -1,45 +1,22 @@
-# from langchain_mistralai import ChatMistralAI
-# from config import API_KEY, MODEL_NAME
-
-# client = ChatMistralAI(
-#     api_key=API_KEY,
-#     model_name=MODEL_NAME
-# )
-
-
-# def chat(message: list) -> str:
-#     response = client.chat.completions.create(
-#         messages=message,
-#         model=MODEL_NAME,
-#         temperature=0
-#     )
-#     return response.choices[0].message.content.strip()
-
-# if __name__ == "__main__":
-#     messages = [
-#         {"role": "user", "content": "Hello, how are you?"}
-#     ]
-#     response = chat(messages)
-#     print(response)
-
-
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 
 from langchain_mistralai import ChatMistralAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from config import API_KEY, MODEL_NAME
-
-client = ChatMistralAI(
-    api_key=API_KEY,
-    model=MODEL_NAME
-)
+from config import get_api_key, get_model_name
 
 def chat(messages):
     """
     messages: list of dicts {"role": "...", "content": "..."}
     Returns: str response from LLM
+    Client is created at call-time so secrets are always loaded.
     """
+    # Client har call pe fresh banao — taaki secrets sahi milein
+    client = ChatMistralAI(
+        api_key=get_api_key(),
+        model=get_model_name()
+    )
+
     lc_messages = []
     for m in messages:
         role = m.get("role", "user")
@@ -56,6 +33,6 @@ def chat(messages):
 
 if __name__ == "__main__":
     messages = [
-        {"role": "user", "content": "tell me current time and date in india"}
+        {"role": "user", "content": "say hello"}
     ]
-    print(chat(messages))
+    print(chat(messages))

@@ -5,14 +5,26 @@ load_dotenv()
 
 def get_secret(key: str) -> str:
     """
-    Local pe: .env file se padhta hai
-    Streamlit Cloud pe: st.secrets se padhta hai
+    Runtime pe secrets padhta hai:
+    - Streamlit Cloud: st.secrets se
+    - Local: .env se
     """
     try:
         import streamlit as st
-        return st.secrets.get(key) or os.getenv(key, "")
+        val = st.secrets.get(key, "")
+        if val:
+            return str(val)
     except Exception:
-        return os.getenv(key, "")
+        pass
+    return os.getenv(key, "")
 
-API_KEY = get_secret("API_KEY")
-MODEL_NAME = get_secret("MODEL_NAME")
+# These are called lazily — import time pe nahi
+def get_api_key() -> str:
+    return get_secret("API_KEY")
+
+def get_model_name() -> str:
+    return get_secret("MODEL_NAME") or "mistral-small-2506"
+
+# Backward compatibility ke liye (kuch files directly import karte hain)
+API_KEY = None    # llm.py ab get_api_key() call karega
+MODEL_NAME = None  # llm.py ab get_model_name() call karega
