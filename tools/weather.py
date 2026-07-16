@@ -1,5 +1,33 @@
 import requests
 
+GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
+WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
+
+# WMO Weather interpretation codes
+WMO_CODES = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    71: "Slight snow fall",
+    73: "Moderate snow fall",
+    75: "Heavy snow fall",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail"
+}
+
 def execute(arguments: dict):
     city = arguments.get("city")
 
@@ -7,54 +35,55 @@ def execute(arguments: dict):
         return "Weather error: city not provided"
     
     try:
-        # Fetch weather in JSON format from wttr.in
-        url = f"https://wttr.in/{city}"
-        response = requests.get(
-            url,
-            params={"format": "j1"},
+        geo_response = requests.get(
+            GEOCODING_URL,
+            params={
+                "name": city,
+                "count": 1
+            },
             timeout=10
         )
-        response.raise_for_status()
-        data = response.json()
+        geo_response.raise_for_status()
+        geo_data = geo_response.json()
 
-        current = data["current_condition"][0]
-        temp = current.get("temp_C")
-        feels_like = current.get("FeelsLikeC")
-        humidity = current.get("humidity")
-        windspeed = current.get("windspeedKmph")
+        if "results" not in geo_data:
+            return f"City not found: {city}"
         
-        weather_desc = "Unknown"
-        if current.get("weatherDesc"):
-            weather_desc = current["weatherDesc"][0].get("value", "Unknown")
+        location = geo_data["results"][0]
+        latitude = location["latitude"]
+        longitude = location["longitude"]
+        city_name = location["name"]
+        country = location.get("country", "")
 
-        # Attempt to get area/country names
-        area_name = city
-        country = ""
-        if "nearest_area" in data and data["nearest_area"]:
-            area = data["nearest_area"][0]
-            if area.get("areaName"):
-                area_name = area["areaName"][0].get("value", city)
-            if area.get("country"):
-                country = area["country"][0].get("value", "")
+        weather_response = requests.get(
+            WEATHER_URL,
+            params={
+                "latitude": latitude,
+                "longitude": longitude,
+                "current_weather": True
+            },
+            timeout=10
+        )
+        weather_response.raise_for_status()
+        weather_data = weather_response.json()
+
+        current = weather_data["current_weather"]
+        temperature = current.get("temperature")
+        weather_code = current.get("weathercode")
+        windspeed = current.get("windspeed")
+
+        condition = WMO_CODES.get(weather_code, f"Code {weather_code}")
 
         country_str = f", {country}" if country else ""
         return (
-            f"City: {area_name}{country_str}\n"
-            f"Temperature: {temp}°C (Feels like: {feels_like}°C)\n"
-            f"Condition: {weather_desc}\n"
-            f"Humidity: {humidity}%\n"
+            f"City: {city_name}{country_str}\n"
+            f"Temperature: {temperature}°C\n"
+            f"Condition: {condition}\n"
             f"Wind Speed: {windspeed} km/h"
         )
 
     except Exception as e:
-        # Fallback to plain-text format if JSON API fails or rate-limits
-        try:
-            url = f"https://wttr.in/{city}"
-            response = requests.get(url, params={"format": 3}, timeout=10)
-            response.raise_for_status()
-            return response.text.strip()
-        except Exception as e2:
-            return f"Weather error: Could not retrieve weather for {city}. (JSON Error: {e}, Text Error: {e2})"
+        return f"Weather error: {e}"
 
 if __name__ == "__main__":
     print("weather tool\n")
