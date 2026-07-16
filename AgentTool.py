@@ -126,6 +126,14 @@ class Agent:
                 # Override llm_response with JSON so conversation flow stays consistent
                 import json
                 llm_response = json.dumps(forced)
+        elif tool_requests:
+            # Check if any tools were missed by the LLM (e.g. weather called but time omitted)
+            forced_defaults = detect_forced_tools(user_input)
+            existing_tools = {req.get("tool") for req in tool_requests if req}
+            for fd in forced_defaults:
+                if fd.get("tool") not in existing_tools:
+                    print(f"[COMPLETENESS] Appending missed tool call: {fd}")
+                    tool_requests.append(fd)
 
         # Koi tool nahi — seedha jawab do
         if not tool_requests:
