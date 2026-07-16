@@ -11,7 +11,6 @@ def chat(messages):
     Returns: str response from LLM
     Client is created at call-time so secrets are always loaded.
     """
-    # Client har call pe fresh banao — taaki secrets sahi milein
     client = ChatMistralAI(
         api_key=get_api_key(),
         model=get_model_name()

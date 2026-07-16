@@ -3,7 +3,6 @@ import requests
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
 
-# WMO Weather interpretation codes
 WMO_CODES = {
     0: "Clear sky",
     1: "Mainly clear",

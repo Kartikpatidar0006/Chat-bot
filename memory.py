@@ -4,7 +4,7 @@ import json
 MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.json")
 
 
-MAX_MEMORY_PAIRS = 10  # Only last 10 user+assistant pairs kept
+MAX_MEMORY_PAIRS = 10 
 
 def load_memory():
     if not os.path.exists(MEMORY_FILE):
@@ -13,7 +13,7 @@ def load_memory():
     try:
         with open(MEMORY_FILE, "r", encoding="utf-8") as file:
             memory = json.load(file)
-            # Keep only last MAX_MEMORY_PAIRS pairs (2 messages per pair)
+            
             max_msgs = MAX_MEMORY_PAIRS * 2
             return memory[-max_msgs:] if len(memory) > max_msgs else memory
     except Exception:
@@ -21,7 +21,7 @@ def load_memory():
 
 
 def save_memory(memory):
-    # Trim before saving too
+   
     max_msgs = MAX_MEMORY_PAIRS * 2
     if len(memory) > max_msgs:
         memory = memory[-max_msgs:]
