@@ -38,17 +38,18 @@ def llm_refused_tool(response: str) -> bool:
             
     return False
 
-def detect_forced_tool(user_input: str) -> dict | None:
+def detect_forced_tools(user_input: str) -> list:
     """
-    If LLM didn't call a tool, detect what tool should have been called.
-    Returns a tool_request dict or None.
+    If LLM didn't call a tool, detect what tools should have been called.
+    Returns a list of tool_request dicts.
     """
     lower = user_input.lower()
+    forced_list = []
 
     # Time check
     time_words = ['time', 'samay', 'kitne baje', 'clock', 'what time']
-    if any(w in lower for w in time_words) and 'weather' not in lower:
-        return {"tool": "time"}
+    if any(w in lower for w in time_words):
+        forced_list.append({"tool": "time"})
 
     # Weather check
     weather_words = ['weather', 'temperature', 'rain', 'humidity', 'mausam', 'garmi', 'sardi', 'forecast']
@@ -59,21 +60,25 @@ def detect_forced_tool(user_input: str) -> dict | None:
             user_input, re.IGNORECASE
         )
         city = city_match.group(1).strip() if city_match else "Delhi"
-        return {"tool": "weather", "city": city}
+        forced_list.append({"tool": "weather", "city": city})
 
     # Calculator check
     calc_words = ['calculate', 'multiply', 'divide', 'add', 'subtract', 'plus', 'minus', 'sum', 'solve', 'square root', 'sqrt']
     has_operator = any(op in user_input for op in ['+', '-', '*', '/', '^', '%'])
     has_digit = any(c.isdigit() for c in user_input)
     if any(w in lower for w in calc_words) or (has_digit and has_operator):
-        return {"tool": "calculator", "expression": user_input}
+        forced_list.append({"tool": "calculator", "expression": user_input})
+
+    # If any specific tools were matched, return the list
+    if forced_list:
+        return forced_list
 
     # Everything else → web search (except simple greetings)
     greetings = ['hi', 'hello', 'hey', 'namaste', 'hola', 'exit', 'quit', 'clear']
     if not any(w == lower.strip('?.!') for w in greetings):
-        return {"tool": "web_search", "query": user_input}
+        return [{"tool": "web_search", "query": user_input}]
 
-    return None
+    return []
 
 def extract_urls_from_search(search_output: str) -> list:
     """Web search output mein se URLs extract karo."""
@@ -102,10 +107,10 @@ class Agent:
 
         # Step 3: Agar LLM ne tool call nahi ki aur refuse kar diya → force karo
         if not tool_requests and llm_refused_tool(llm_response):
-            forced = detect_forced_tool(user_input)
+            forced = detect_forced_tools(user_input)
             if forced:
-                print(f"[FALLBACK] LLM refused, forcing tool: {forced}")
-                tool_requests = [forced]
+                print(f"[FALLBACK] LLM refused, forcing tools: {forced}")
+                tool_requests = forced
                 # Override llm_response with JSON so conversation flow stays consistent
                 import json
                 llm_response = json.dumps(forced)
