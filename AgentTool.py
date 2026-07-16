@@ -38,6 +38,23 @@ def llm_refused_tool(response: str) -> bool:
             
     return False
 
+def extract_city_smart(user_input: str) -> str:
+    """
+    Extracts the city name from a user query by filtering out common stop words.
+    """
+    cleaned = re.sub(r'[^\w\s]', '', user_input)
+    words = cleaned.split()
+    
+    stop_words = {
+        'what', 'is', 'the', 'current', 'weather', 'wether', 'weater', 'weathr', 
+        'and', 'time', 'forecast', 'temperature', 'temp', 'rain', 'humidity', 
+        'mausam', 'now', 'today', 'tomorrow', 'in', 'of', 'at', 'for', 'how', 
+        'show', 'get', 'me', 'please', 'give', 'a', 'an', 'to', 'city', 'location'
+    }
+    
+    city_words = [w for w in words if w.lower() not in stop_words]
+    return " ".join(city_words).title() if city_words else "Delhi"
+
 def detect_forced_tools(user_input: str) -> list:
     """
     If LLM didn't call a tool, detect what tools should have been called.
@@ -51,15 +68,10 @@ def detect_forced_tools(user_input: str) -> list:
     if any(w in lower for w in time_words):
         forced_list.append({"tool": "time"})
 
-    # Weather check
-    weather_words = ['weather', 'temperature', 'rain', 'humidity', 'mausam', 'garmi', 'sardi', 'forecast']
+    # Weather check (including spelling mistakes like wether, weater, weathr)
+    weather_words = ['weather', 'wether', 'weater', 'weathr', 'temperature', 'temp', 'rain', 'humidity', 'mausam', 'garmi', 'sardi', 'forecast']
     if any(w in lower for w in weather_words):
-        # Try to extract city from common patterns
-        city_match = re.search(
-            r'\b(?:of|in|at|for)\b\s+([A-Za-z\s]+?)(?:\s+\b(?:and|weather|temperature|today|now|forecast|time)\b|\?|$)',
-            user_input, re.IGNORECASE
-        )
-        city = city_match.group(1).strip() if city_match else "Delhi"
+        city = extract_city_smart(user_input)
         forced_list.append({"tool": "weather", "city": city})
 
     # Calculator check
