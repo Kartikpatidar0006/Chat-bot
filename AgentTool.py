@@ -16,13 +16,27 @@ REFUSAL_PHRASES = [
     "i can't provide",
     "i do not have the",
     "hit a request limit",
-    "i'm sorry, but i currently",
+    "i'm sorry",
+    "i am sorry",
+    "apologies",
+    "unable to retrieve",
+    "unable to perform",
 ]
 
 def llm_refused_tool(response: str) -> bool:
     """Check if LLM said it couldn't use a tool instead of calling it."""
     lower = response.lower()
-    return any(phrase in lower for phrase in REFUSAL_PHRASES)
+    if any(phrase in lower for phrase in REFUSAL_PHRASES):
+        return True
+    
+    # Heuristic: if response does not start with JSON notation, and contains refusal indicators
+    trimmed = response.strip()
+    if not (trimmed.startswith("{") or trimmed.startswith("[")):
+        inability_keywords = ["unable", "sorry", "cannot", "can't", "apologize", "don't have", "do not have"]
+        if any(k in lower for k in inability_keywords):
+            return True
+            
+    return False
 
 def detect_forced_tool(user_input: str) -> dict | None:
     """
@@ -47,8 +61,16 @@ def detect_forced_tool(user_input: str) -> dict | None:
         city = city_match.group(1).strip() if city_match else "Delhi"
         return {"tool": "weather", "city": city}
 
-    # Everything else → web search (for any factual / knowledge question)
-    if len(user_input.split()) >= 2:
+    # Calculator check
+    calc_words = ['calculate', 'multiply', 'divide', 'add', 'subtract', 'plus', 'minus', 'sum', 'solve', 'square root', 'sqrt']
+    has_operator = any(op in user_input for op in ['+', '-', '*', '/', '^', '%'])
+    has_digit = any(c.isdigit() for c in user_input)
+    if any(w in lower for w in calc_words) or (has_digit and has_operator):
+        return {"tool": "calculator", "expression": user_input}
+
+    # Everything else → web search (except simple greetings)
+    greetings = ['hi', 'hello', 'hey', 'namaste', 'hola', 'exit', 'quit', 'clear']
+    if not any(w == lower.strip('?.!') for w in greetings):
         return {"tool": "web_search", "query": user_input}
 
     return None
