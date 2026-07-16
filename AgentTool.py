@@ -56,7 +56,7 @@ def detect_forced_tools(user_input: str) -> list:
     if any(w in lower for w in weather_words):
         # Try to extract city from common patterns
         city_match = re.search(
-            r'(?:of|in|at|for)\s+([A-Za-z\s]+?)(?:\s+and|\s+weather|\s+temperature|\?|$)',
+            r'\b(?:of|in|at|for)\b\s+([A-Za-z\s]+?)(?:\s+\b(?:and|weather|temperature|today|now|forecast|time)\b|\?|$)',
             user_input, re.IGNORECASE
         )
         city = city_match.group(1).strip() if city_match else "Delhi"
